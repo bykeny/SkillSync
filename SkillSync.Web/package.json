@@ -1,0 +1,10 @@
+{
+  "name": "skillsync.web",
+  "version": "1.0.0",
+  "scripts": {
+    "css:build": "npx tailwindcss -i ./wwwroot/css/app.css -o ./wwwroot/css/output.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

@@ -1,0 +1,244 @@
+﻿@page "/activities/create"
+@page "/activities/edit/{id:int}"
+@attribute [Authorize]
+@using SkillSync.Web.Models
+@using SkillSync.Web.Services
+@inject IActivityService ActivityService
+@inject ISkillService SkillService
+@inject NavigationManager Navigation
+
+<PageTitle>@(Id == null ? "Add Activity" : "Edit Activity") - SkillSync</PageTitle>
+
+<div class="max-w-2xl mx-auto px-4 sm:px-0">
+    <div class="mb-6">
+        <button @onclick="NavigateBack" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Activities
+        </button>
+        <h1 class="text-3xl font-bold text-gray-900 mt-4">@(Id == null ? "Add New Activity" : "Edit Activity")</h1>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white rounded-lg shadow p-6">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                    @errorMessage
+                </div>
+            }
+
+            <EditForm Model="@request" OnValidSubmit="HandleSubmit" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Activity Title *</label>
+                    <InputText @bind-Value="request.Title" class="input-field" placeholder="e.g., Complete C# Course" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <InputTextArea @bind-Value="request.Description" class="input-field" rows="3"
+                                   placeholder="Describe the activity..." />
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Related Skill *</label>
+                        <InputSelect @bind-Value="request.SkillId" class="input-field">
+                            <option value="0">Select a skill</option>
+                            @foreach (var skill in skills)
+                            {
+                                <option value="@skill.Id">@skill.Name</option>
+                            }
+                        </InputSelect>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Type *</label>
+                        <InputSelect @bind-Value="request.Type" class="input-field">
+                            @foreach (ActivityType type in Enum.GetValues(typeof(ActivityType)))
+                            {
+                                <option value="@type">@type</option>
+                            }
+                        </InputSelect>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Duration (minutes): @request.DurationMinutes
+                    </label>
+                    <input type="range" @bind="request.DurationMinutes"
+                           min="15" max="480" step="15"
+                           class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span>15 min</span>
+                        <span>@((request.DurationMinutes / 60.0).ToString("F1")) hours</span>
+                        <span>8 hours</span>
+                    </div>
+                </div>
+
+                @if (Id != null)
+                {
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                        <InputSelect @bind-Value="updateRequest!.Status" class="input-field">
+                            @foreach (ActivityStatus status in Enum.GetValues(typeof(ActivityStatus)))
+                            {
+                                <option value="@status">@status</option>
+                            }
+                        </InputSelect>
+                    </div>
+                }
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Resource URL</label>
+                    <InputText @bind-Value="request.ResourceUrl" class="input-field"
+                               placeholder="https://example.com/course" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <InputTextArea @bind-Value="request.Notes" class="input-field" rows="3"
+                                   placeholder="Add any notes about this activity..." />
+                </div>
+
+                <div class="flex gap-4">
+                    <button type="submit" disabled="@isSaving" class="btn-primary flex-1">
+                        @if (isSaving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>@(Id == null ? "Create Activity" : "Update Activity")</span>
+                        }
+                    </button>
+                    <button type="button" @onclick="NavigateBack" class="btn-secondary">
+                        Cancel
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CreateActivityRequest request = new() { DurationMinutes = 60 };
+    private UpdateActivityRequest? updateRequest;
+    private List<Skill> skills = new();
+    private bool isLoading = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        skills = await SkillService.GetAllSkillsAsync();
+
+        if (Id != null)
+        {
+            isLoading = true;
+            var activity = await ActivityService.GetActivityByIdAsync(Id.Value);
+
+            if (activity != null)
+            {
+                updateRequest = new UpdateActivityRequest
+                {
+                    Title = activity.Title,
+                    Description = activity.Description,
+                    Type = activity.Type,
+                    Status = activity.Status,
+                    DurationMinutes = activity.DurationMinutes,
+                    SkillId = activity.SkillId,
+                    ResourceUrl = activity.ResourceUrl,
+                    Notes = activity.Notes
+                };
+
+                // Map to request for binding
+                request = new CreateActivityRequest
+                {
+                    Title = activity.Title,
+                    Description = activity.Description,
+                    Type = activity.Type,
+                    DurationMinutes = activity.DurationMinutes,
+                    SkillId = activity.SkillId,
+                    ResourceUrl = activity.ResourceUrl,
+                    Notes = activity.Notes
+                };
+            }
+            else
+            {
+                Navigation.NavigateTo("/activities");
+            }
+
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (Id == null)
+            {
+                var result = await ActivityService.CreateActivityAsync(request);
+                if (result != null)
+                {
+                    Navigation.NavigateTo("/activities");
+                }
+                else
+                {
+                    errorMessage = "Failed to create activity. Please try again.";
+                }
+            }
+            else
+            {
+                var updateReq = new UpdateActivityRequest
+                {
+                    Title = request.Title,
+                    Description = request.Description,
+                    Type = request.Type,
+                    Status = updateRequest?.Status ?? ActivityStatus.NotStarted,
+                    DurationMinutes = request.DurationMinutes,
+                    SkillId = request.SkillId,
+                    ResourceUrl = request.ResourceUrl,
+                    Notes = request.Notes
+                };
+
+                var result = await ActivityService.UpdateActivityAsync(Id.Value, updateReq);
+                if (result != null)
+                {
+                    Navigation.NavigateTo("/activities");
+                }
+                else
+                {
+                    errorMessage = "Failed to update activity. Please try again.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+
+        isSaving = false;
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/activities");
+    }
+}

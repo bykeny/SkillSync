@@ -1,0 +1,235 @@
+﻿@page "/activities"
+@attribute [Authorize]
+@using SkillSync.Web.Models
+@using SkillSync.Web.Services
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<PageTitle>Activities - SkillSync</PageTitle>
+
+<div class="px-4 sm:px-0">
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">My Activities</h1>
+            <p class="text-gray-600 mt-1">Track your learning activities</p>
+        </div>
+        <button @onclick="NavigateToCreate" class="btn-primary">
+            <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Add Activity
+        </button>
+    </div>
+
+    @if (stats != null)
+    {
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-lg shadow p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-blue-500 rounded-md p-3">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Total Activities</p>
+                        <p class="text-2xl font-semibold text-gray-900">@stats.TotalActivities</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">Completed</p>
+                        <p class="text-2xl font-semibold text-gray-900">@stats.CompletedActivities</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">In Progress</p>
+                        <p class="text-2xl font-semibold text-gray-900">@stats.InProgressActivities</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-5">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 bg-purple-500 rounded-md p-3">
+                        <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm font-medium text-gray-500">This Week</p>
+                        <p class="text-2xl font-semibold text-gray-900">@stats.ThisWeekHours.ToString("F1")h</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    }
+    else if (activities.Count == 0)
+    {
+        <div class="bg-white rounded-lg shadow p-8 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+            <h3 class="mt-2 text-lg font-medium text-gray-900">No activities yet</h3>
+            <p class="mt-1 text-gray-500">Start tracking your learning activities.</p>
+            <button @onclick="NavigateToCreate" class="mt-4 btn-primary">
+                Add Your First Activity
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Skill</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @foreach (var activity in activities)
+                        {
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-6 py-4">
+                                    <div class="text-sm font-medium text-gray-900">@activity.Title</div>
+                                    @if (!string.IsNullOrEmpty(activity.Description))
+                                    {
+                                        <div class="text-sm text-gray-500">@activity.Description</div>
+                                    }
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-900">@activity.SkillName</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                        @activity.Type
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 text-xs rounded-full @GetStatusColor(activity.Status)">
+                                        @activity.Status
+                                    </span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-gray-900">
+                                    @activity.DurationHours.ToString("F1")h
+                                </td>
+                                <td class="px-6 py-4 text-sm font-medium space-x-2">
+                                    @if (activity.Status == ActivityStatus.NotStarted)
+                                    {
+                                        <button @onclick="() => StartActivity(activity.Id)" 
+                                                class="text-green-600 hover:text-green-900">
+                                            Start
+                                        </button>
+                                    }
+                                    @if (activity.Status == ActivityStatus.InProgress)
+                                    {
+                                        <button @onclick="() => CompleteActivity(activity.Id)" 
+                                                class="text-blue-600 hover:text-blue-900">
+                                            Complete
+                                        </button>
+                                    }
+                                    <button @onclick="() => NavigateToEdit(activity.Id)" 
+                                            class="text-indigo-600 hover:text-indigo-900">
+                                        Edit
+                                    </button>
+                                    <button @onclick="() => DeleteActivity(activity.Id)" 
+                                            class="text-red-600 hover:text-red-900">
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Activity> activities = new();
+    private ActivityStats? stats;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        activities = await ActivityService.GetAllActivitiesAsync();
+        stats = await ActivityService.GetStatsAsync();
+        isLoading = false;
+    }
+
+    private void NavigateToCreate()
+    {
+        Navigation.NavigateTo("/activities/create");
+    }
+
+    private void NavigateToEdit(int id)
+    {
+        Navigation.NavigateTo($"/activities/edit/{id}");
+    }
+
+    private async Task StartActivity(int id)
+    {
+        await ActivityService.StartActivityAsync(id);
+        await LoadData();
+    }
+
+    private async Task CompleteActivity(int id)
+    {
+        await ActivityService.CompleteActivityAsync(id);
+        await LoadData();
+    }
+
+    private async Task DeleteActivity(int id)
+    {
+        await ActivityService.DeleteActivityAsync(id);
+        await LoadData();
+    }
+
+    private string GetStatusColor(ActivityStatus status)
+    {
+        return status switch
+        {
+            ActivityStatus.NotStarted => "bg-gray-100 text-gray-800",
+            ActivityStatus.InProgress => "bg-yellow-100 text-yellow-800",
+            ActivityStatus.Completed => "bg-green-100 text-green-800",
+            ActivityStatus.Paused => "bg-orange-100 text-orange-800",
+            ActivityStatus.Cancelled => "bg-red-100 text-red-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+}

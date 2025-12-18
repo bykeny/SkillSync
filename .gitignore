@@ -1,0 +1,46 @@
+## Visual Studio
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+
+## Database
+*.mdf
+*.ldf
+*.db
+*.sqlite
+
+## Logs
+logs/
+*.log
+
+## Environment
+.env
+.env.local
+appsettings.Development.json
+appsettings.Staging.json
+
+## Node (Blazor/Tailwind)
+node_modules/
+package-lock.json
+
+## OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,77 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<div class="min-h-screen bg-gray-50">
+    <AuthorizeView>
+        <Authorized>
+            <nav class="bg-white shadow-sm">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="flex justify-between h-16">
+                        <div class="flex">
+                            <div class="flex-shrink-0 flex items-center">
+                                <a href="/" class="text-xl font-bold text-blue-600">SkillSync</a>
+                            </div>
+                            <div class="hidden sm:ml-6 sm:flex sm:space-x-8">
+                                <NavLink href="/" class="nav-link" Match="NavLinkMatch.All">
+                                    Dashboard
+                                </NavLink>
+                                <NavLink href="/skills" class="nav-link">
+                                    Skills
+                                </NavLink>
+                                <NavLink href="/activities" class="nav-link">
+                                    Activities
+                                </NavLink>
+                            </div>
+                        </div>
+                        <div class="flex items-center">
+                            <button @onclick="HandleLogout"
+                                    class="ml-4 px-4 py-2 text-sm text-gray-700 hover:text-gray-900">
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <main class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                @Body
+            </main>
+        </Authorized>
+        <NotAuthorized>
+            @Body
+        </NotAuthorized>
+    </AuthorizeView>
+</div>
+
+<style>
+    .nav-link {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-bottom: 2px solid transparent;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #6B7280;
+        transition: all 0.3s;
+    }
+
+        .nav-link:hover {
+            color: #111827;
+            border-bottom-color: #E5E7EB;
+        }
+
+        .nav-link.active {
+            color: #2563EB;
+            border-bottom-color: #2563EB;
+        }
+</style>
+
+@code {
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/login");
+    }
+}

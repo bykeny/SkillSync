@@ -1,0 +1,219 @@
+﻿@page "/"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using SkillSync.Web.Models
+@using SkillSync.Web.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IAuthService AuthService
+@inject ISkillService SkillService
+@inject IActivityService ActivityService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - SkillSync</PageTitle>
+
+<div class="px-4 sm:px-0">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+    <p class="text-gray-600 mb-8">Welcome back, @userProfile?.FirstName! Track your learning progress here.</p>
+
+    @if (isLoading)
+    {
+        <div class="flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 mb-8">
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-blue-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Total Skills</dt>
+                                <dd class="text-3xl font-semibold text-gray-900">@skills.Count</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-green-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Active Activities</dt>
+                                <dd class="text-3xl font-semibold text-gray-900">@(stats?.InProgressActivities ?? 0)</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white overflow-hidden shadow rounded-lg">
+                <div class="p-5">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 bg-yellow-500 rounded-md p-3">
+                            <svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-5 w-0 flex-1">
+                            <dl>
+                                <dt class="text-sm font-medium text-gray-500 truncate">Hours This Week</dt>
+                                <dd class="text-3xl font-semibold text-gray-900">@(stats?.ThisWeekHours.ToString("F1") ?? "0")</dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (skills.Count == 0)
+        {
+            <div class="bg-white shadow rounded-lg p-6">
+                <h2 class="text-xl font-semibold text-gray-900 mb-4">Getting Started</h2>
+                <div class="space-y-4">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <span class="flex items-center justify-center h-8 w-8 rounded-full bg-blue-500 text-white font-semibold">1</span>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-medium text-gray-900">Add your first skill</h3>
+                            <p class="mt-1 text-sm text-gray-600">Start by adding a skill you want to track or improve.</p>
+                            <button @onclick='() => Navigation.NavigateTo("/skills/create")' 
+                                    class="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-500">
+                                Add Skill →
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <span class="flex items-center justify-center h-8 w-8 rounded-full bg-gray-300 text-white font-semibold">2</span>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-medium text-gray-900">Track your activities</h3>
+                            <p class="mt-1 text-sm text-gray-600">Log learning activities like courses, projects, or practice sessions.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <span class="flex items-center justify-center h-8 w-8 rounded-full bg-gray-300 text-white font-semibold">3</span>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-medium text-gray-900">Get AI recommendations</h3>
+                            <p class="mt-1 text-sm text-gray-600">Receive personalized learning paths based on your progress.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Skills</h2>
+                    <div class="space-y-4">
+                        @foreach (var skill in skills.Take(5))
+                        {
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900">@skill.Name</p>
+                                    <div class="mt-1 w-full bg-gray-200 rounded-full h-2">
+                                        <div class="bg-blue-600 h-2 rounded-full" 
+                                             style="width: @(skill.ProgressPercentage)%"></div>
+                                    </div>
+                                </div>
+                                <span class="ml-4 text-sm text-gray-500">@skill.ProgressPercentage%</span>
+                            </div>
+                        }
+                    </div>
+                    <button @onclick='() => Navigation.NavigateTo("/skills")' 
+                            class="mt-4 text-sm font-medium text-blue-600 hover:text-blue-500">
+                        View all skills →
+                    </button>
+                </div>
+
+                <div class="bg-white shadow rounded-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Activities</h2>
+                    <div class="space-y-4">
+                        @if (activities.Any())
+                        {
+                            @foreach (var activity in activities.Take(5))
+                            {
+                                <div class="flex items-start">
+                                    <div class="flex-shrink-0">
+                                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-full @GetActivityIcon(activity.Status)">
+                                            <svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                            </svg>
+                                        </span>
+                                    </div>
+                                    <div class="ml-3 flex-1">
+                                        <p class="text-sm font-medium text-gray-900">@activity.Title</p>
+                                        <p class="text-sm text-gray-500">@activity.SkillName • @activity.DurationHours.ToString("F1")h</p>
+                                    </div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <p class="text-sm text-gray-500">No activities yet</p>
+                        }
+                    </div>
+                    <button @onclick='() => Navigation.NavigateTo("/activities")' 
+                            class="mt-4 text-sm font-medium text-blue-600 hover:text-blue-500">
+                        View all activities →
+                    </button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private UserProfile? userProfile;
+    private List<Skill> skills = new();
+    private List<Activity> activities = new();
+    private ActivityStats? stats;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            userProfile = await AuthService.GetProfileAsync();
+            skills = await SkillService.GetAllSkillsAsync();
+            activities = await ActivityService.GetAllActivitiesAsync();
+            stats = await ActivityService.GetStatsAsync();
+        }
+
+        isLoading = false;
+    }
+
+    private string GetActivityIcon(ActivityStatus status)
+    {
+        return status switch
+        {
+            ActivityStatus.Completed => "bg-green-500",
+            ActivityStatus.InProgress => "bg-yellow-500",
+            _ => "bg-gray-400"
+        };
+    }
+}

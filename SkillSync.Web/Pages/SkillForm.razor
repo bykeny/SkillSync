@@ -1,0 +1,221 @@
+﻿@page "/skills/create"
+@page "/skills/edit/{id:int}"
+@attribute [Authorize]
+@using SkillSync.Web.Models
+@using SkillSync.Web.Services
+@inject ISkillService SkillService
+@inject NavigationManager Navigation
+
+<PageTitle>@(Id == null ? "Add Skill" : "Edit Skill") - SkillSync</PageTitle>
+
+<div class="max-w-2xl mx-auto px-4 sm:px-0">
+    <div class="mb-6">
+        <button @onclick="NavigateBack" class="text-blue-600 hover:text-blue-800 flex items-center">
+            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Skills
+        </button>
+        <h1 class="text-3xl font-bold text-gray-900 mt-4">@(Id == null ? "Add New Skill" : "Edit Skill")</h1>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="flex justify-center items-center py-12">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    }
+    else
+    {
+        <div class="bg-white rounded-lg shadow p-6">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+                    @errorMessage
+                </div>
+            }
+
+            <EditForm Model="@request" OnValidSubmit="HandleSubmit" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Skill Name *</label>
+                    <InputText @bind-Value="request.Name" class="input-field" placeholder="e.g., C# Programming" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                    <InputTextArea @bind-Value="request.Description" class="input-field" rows="3"
+                                   placeholder="Describe what you're learning..." />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                    <InputSelect @bind-Value="request.CategoryId" class="input-field">
+                        <option value="">Select a category</option>
+                        @foreach (var category in categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Current Level: @request.ProficiencyLevel
+                        </label>
+                        <input type="range" @bind="request.ProficiencyLevel"
+                               min="1" max="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>1 (Beginner)</span>
+                            <span>5 (Expert)</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Target Level: @request.TargetLevel
+                        </label>
+                        <input type="range" @bind="request.TargetLevel"
+                               min="1" max="5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" />
+                        <div class="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>1 (Beginner)</span>
+                            <span>5 (Expert)</span>
+                        </div>
+                    </div>
+                </div>
+
+                @if (Id != null)
+                {
+                    <div class="flex items-center">
+                        <input type="checkbox" @bind="updateRequest!.IsActive"
+                               class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+                        <label class="ml-2 block text-sm text-gray-900">Active</label>
+                    </div>
+                }
+
+                <div class="flex gap-4">
+                    <button type="submit" disabled="@isSaving" class="btn-primary flex-1">
+                        @if (isSaving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>@(Id == null ? "Create Skill" : "Update Skill")</span>
+                        }
+                    </button>
+                    <button type="button" @onclick="NavigateBack" class="btn-secondary">
+                        Cancel
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private CreateSkillRequest request = new();
+    private UpdateSkillRequest? updateRequest;
+    private List<SkillCategory> categories = new();
+    private bool isLoading = false;
+    private bool isSaving = false;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await SkillService.GetCategoriesAsync();
+
+        if (Id != null)
+        {
+            isLoading = true;
+            var skill = await SkillService.GetSkillByIdAsync(Id.Value);
+
+            if (skill != null)
+            {
+                updateRequest = new UpdateSkillRequest
+                {
+                    Name = skill.Name,
+                    Description = skill.Description,
+                    ProficiencyLevel = skill.ProficiencyLevel,
+                    TargetLevel = skill.TargetLevel,
+                    CategoryId = skill.CategoryId,
+                    IsActive = skill.IsActive
+                };
+
+                // Map to request for binding
+                request = new CreateSkillRequest
+                {
+                    Name = skill.Name,
+                    Description = skill.Description,
+                    ProficiencyLevel = skill.ProficiencyLevel,
+                    TargetLevel = skill.TargetLevel,
+                    CategoryId = skill.CategoryId
+                };
+            }
+            else
+            {
+                Navigation.NavigateTo("/skills");
+            }
+
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        isSaving = true;
+        errorMessage = null;
+
+        try
+        {
+            if (Id == null)
+            {
+                var result = await SkillService.CreateSkillAsync(request);
+                if (result != null)
+                {
+                    Navigation.NavigateTo("/skills");
+                }
+                else
+                {
+                    errorMessage = "Failed to create skill. Please try again.";
+                }
+            }
+            else
+            {
+                var updateReq = new UpdateSkillRequest
+                {
+                    Name = request.Name,
+                    Description = request.Description,
+                    ProficiencyLevel = request.ProficiencyLevel,
+                    TargetLevel = request.TargetLevel,
+                    CategoryId = request.CategoryId,
+                    IsActive = updateRequest?.IsActive ?? true
+                };
+
+                var result = await SkillService.UpdateSkillAsync(Id.Value, updateReq);
+                if (result != null)
+                {
+                    Navigation.NavigateTo("/skills");
+                }
+                else
+                {
+                    errorMessage = "Failed to update skill. Please try again.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+
+        isSaving = false;
+    }
+
+    private void NavigateBack()
+    {
+        Navigation.NavigateTo("/skills");
+    }
+}

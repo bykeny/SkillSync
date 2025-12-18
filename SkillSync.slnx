@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SkillSync.Api/SkillSync.Api.csproj" />
+  <Project Path="SkillSync.Web/SkillSync.Web.csproj" />
+</Solution>
