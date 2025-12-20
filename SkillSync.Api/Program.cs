@@ -16,6 +16,7 @@ using SkillSync.Api.Services.Activities;
 using SkillSync.Api.Services.Auth;
 using SkillSync.Api.Services.Skills;
 using SkillSync.Api.Services.Milestones;
+using SkillSync.Api.Services.AI;
 using SkillSync.Api.Validators;
 using System.Text;
 
@@ -86,6 +87,9 @@ builder.Services.AddCors(options =>
 // Configure JWT Settings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 
+// Configure OpenAI Settings
+builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
+
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
 var key = Encoding.UTF8.GetBytes(jwtSettings?.Secret ?? throw new InvalidOperationException("JWT Secret not configured"));
 
@@ -118,6 +122,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
+builder.Services.AddScoped<IAIRecommendationService, AIRecommendationService>();
 
 var app = builder.Build();
 
