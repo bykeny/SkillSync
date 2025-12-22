@@ -33,5 +33,7 @@ builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<IAuthService>(provider => provider.GetRequiredService<AuthService>());
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
+builder.Services.AddScoped<IRecommendationService, RecommendationService>();
+builder.Services.AddScoped<IGitHubService, GitHubService>();
 
 await builder.Build().RunAsync();

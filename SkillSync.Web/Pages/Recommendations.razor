@@ -1,0 +1,262 @@
+@page "/recommendations"
+@attribute [Authorize]
+@using SkillSync.Web.Models
+@using SkillSync.Web.Services
+@inject IRecommendationService RecommendationService
+@inject ISkillService SkillService
+@inject NavigationManager Navigation
+
+<PageTitle>AI Recommendations - SkillSync</PageTitle>
+
+<div class="px-4 sm:px-0">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">AI-Powered Recommendations</h1>
+        <p class="text-gray-600 mt-1">Get personalized learning insights powered by AI</p>
+    </div>
+
+    <!-- Action Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <button @onclick="ShowSkillSelector" 
+                class="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg p-6 text-left hover:shadow-lg transition-shadow">
+            <div class="flex items-center mb-3">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                </svg>
+                <h3 class="ml-3 text-xl font-semibold">Learning Path</h3>
+            </div>
+            <p class="text-blue-100">Get a personalized step-by-step learning path for a specific skill</p>
+        </button>
+
+        <button @onclick="GenerateSchedule" disabled="@isGenerating"
+                class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-lg p-6 text-left hover:shadow-lg transition-shadow">
+            <div class="flex items-center mb-3">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+                <h3 class="ml-3 text-xl font-semibold">Weekly Schedule</h3>
+            </div>
+            <p class="text-green-100">Generate a balanced study schedule for the week ahead</p>
+        </button>
+
+        <button @onclick="GenerateGapAnalysis" disabled="@isGenerating"
+                class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-6 text-left hover:shadow-lg transition-shadow">
+            <div class="flex items-center mb-3">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+                <h3 class="ml-3 text-xl font-semibold">Skill Gap Analysis</h3>
+            </div>
+            <p class="text-purple-100">Identify gaps in your skills and get recommendations</p>
+        </button>
+    </div>
+
+    @if (isGenerating)
+    {
+        <div class="bg-white rounded-lg shadow p-8 text-center mb-8">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-600">Generating AI recommendation... This may take a few seconds.</p>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(generatedContent))
+    {
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <div class="flex justify-between items-start mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Latest Recommendation</h2>
+                <button @onclick="ClearContent" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="prose max-w-none">
+                @((MarkupString)ConvertMarkdownToHtml(generatedContent))
+            </div>
+        </div>
+    }
+
+    <!-- Previous Recommendations -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-900">Previous Recommendations</h2>
+        </div>
+        
+        @if (isLoading)
+        {
+            <div class="p-8 text-center">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            </div>
+        }
+        else if (!recommendations.Any())
+        {
+            <div class="p-8 text-center text-gray-500">
+                <p>No recommendations yet. Generate your first one above!</p>
+            </div>
+        }
+        else
+        {
+            <div class="divide-y divide-gray-200">
+                @foreach (var rec in recommendations)
+                {
+                    <div class="p-6 hover:bg-gray-50 cursor-pointer" @onclick="() => ViewRecommendation(rec)">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <h3 class="text-lg font-medium text-gray-900">@rec.Title</h3>
+                                <div class="mt-1 flex items-center text-sm text-gray-500">
+                                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs mr-2">@rec.Type</span>
+                                    <span>@rec.GeneratedAt.ToString("MMM dd, yyyy")</span>
+                                </div>
+                            </div>
+                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<!-- Skill Selector Modal -->
+@if (showSkillSelector)
+{
+    <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" @onclick="CloseSkillSelector">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white" @onclick:stopPropagation="true">
+            <div class="mt-3">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Select a Skill</h3>
+                <div class="space-y-2 max-h-96 overflow-y-auto">
+                    @foreach (var skill in skills)
+                    {
+                        <button @onclick="() => GenerateLearningPath(skill.Id)" 
+                                class="w-full text-left px-4 py-3 border rounded-lg hover:bg-blue-50 hover:border-blue-500 transition-colors">
+                            <div class="font-medium text-gray-900">@skill.Name</div>
+                            <div class="text-sm text-gray-500">Level @skill.ProficiencyLevel → @skill.TargetLevel</div>
+                        </button>
+                    }
+                </div>
+                <button @onclick="CloseSkillSelector" class="mt-4 w-full btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Recommendation> recommendations = new();
+    private List<Skill> skills = new();
+    private bool isLoading = true;
+    private bool isGenerating = false;
+    private bool showSkillSelector = false;
+    private string? generatedContent;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        recommendations = await RecommendationService.GetAllRecommendationsAsync();
+        skills = await SkillService.GetAllSkillsAsync();
+        isLoading = false;
+    }
+
+    private void ShowSkillSelector()
+    {
+        if (!skills.Any())
+        {
+            Navigation.NavigateTo("/skills/create");
+            return;
+        }
+        showSkillSelector = true;
+    }
+
+    private void CloseSkillSelector()
+    {
+        showSkillSelector = false;
+    }
+
+    private async Task GenerateLearningPath(int skillId)
+    {
+        showSkillSelector = false;
+        isGenerating = true;
+        generatedContent = null;
+        StateHasChanged();
+
+        generatedContent = await RecommendationService.GenerateLearningPathAsync(skillId);
+        isGenerating = false;
+        await LoadData();
+    }
+
+    private async Task GenerateSchedule()
+    {
+        isGenerating = true;
+        generatedContent = null;
+        StateHasChanged();
+
+        generatedContent = await RecommendationService.GenerateWeeklyScheduleAsync();
+        isGenerating = false;
+        await LoadData();
+    }
+
+    private async Task GenerateGapAnalysis()
+    {
+        isGenerating = true;
+        generatedContent = null;
+        StateHasChanged();
+
+        generatedContent = await RecommendationService.GenerateSkillGapAnalysisAsync();
+        isGenerating = false;
+        await LoadData();
+    }
+
+    private void ViewRecommendation(Recommendation rec)
+    {
+        generatedContent = rec.Content;
+    }
+
+    private void ClearContent()
+    {
+        generatedContent = null;
+    }
+
+    private string ConvertMarkdownToHtml(string markdown)
+    {
+        // Basic markdown to HTML conversion
+        var html = markdown
+            .Replace("**", "<strong>", StringComparison.Ordinal)
+            .Replace("**", "</strong>", StringComparison.Ordinal)
+            .Replace("\n\n", "</p><p>", StringComparison.Ordinal)
+            .Replace("\n", "<br>", StringComparison.Ordinal);
+
+        // Handle headers
+        for (int i = 3; i >= 1; i--)
+        {
+            var headerMark = new string('#', i);
+            html = System.Text.RegularExpressions.Regex.Replace(
+                html,
+                $@"^{headerMark}\s+(.+)$",
+                $"<h{i + 1}>$1</h{i + 1}>",
+                System.Text.RegularExpressions.RegexOptions.Multiline
+            );
+        }
+
+        // Handle lists
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html,
+            @"^[-*]\s+(.+)$",
+            "<li>$1</li>",
+            System.Text.RegularExpressions.RegexOptions.Multiline
+        );
+
+        html = System.Text.RegularExpressions.Regex.Replace(
+            html,
+            @"(<li>.*</li>\s*)+",
+            "<ul>$0</ul>",
+            System.Text.RegularExpressions.RegexOptions.Singleline
+        );
+
+        return $"<div class='markdown-content'>{html}</div>";
+    }
+}
