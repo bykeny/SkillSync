@@ -35,5 +35,6 @@ builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IRecommendationService, RecommendationService>();
 builder.Services.AddScoped<IGitHubService, GitHubService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
 await builder.Build().RunAsync();

@@ -38,8 +38,6 @@
 
   <ItemGroup>
     <Folder Include="Data\Configurations\" />
-    <Folder Include="DTOs\Analytics\" />
-    <Folder Include="Services\Analytics\" />
     <Folder Include="Services\Notifications\" />
   </ItemGroup>
 

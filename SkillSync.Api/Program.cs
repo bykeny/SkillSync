@@ -18,6 +18,7 @@ using SkillSync.Api.Services.Skills;
 using SkillSync.Api.Services.Milestones;
 using SkillSync.Api.Services.AI;
 using SkillSync.Api.Services.GitHub;
+using SkillSync.Api.Services.Analytics;
 using SkillSync.Api.Validators;
 using System.Text;
 
@@ -128,6 +129,7 @@ builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IAIRecommendationService, AIRecommendationService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
+builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
 var app = builder.Build();
 
