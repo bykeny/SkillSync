@@ -237,10 +237,10 @@
         // Add series
         foreach (var series in chartData.Series)
         {
-            progressChartOptions.Series.Add(new Series
+            progressChartOptions.Series.Add(new Series<ChartData>
             {
                 Name = series.Key,
-                Data = series.Value.Select(v => (object)v).ToList()
+                Data = (IEnumerable<IDataPoint<ChartData>>)series.Value.ConvertAll(v => (object)v)
             });
         }
     }
@@ -266,16 +266,16 @@
             Colors = new List<string> { "#3B82F6", "#10B981" }
         };
 
-        radarChartOptions.Series.Add(new Series
+        radarChartOptions.Series.Add(new Series<ChartData>
         {
             Name = "Current Level",
-            Data = radarData.CurrentLevels.Select(v => (object)v).ToList()
+            Data = (IEnumerable<IDataPoint<ChartData>>)radarData.CurrentLevels.ConvertAll(v => (object)v)
         });
 
-        radarChartOptions.Series.Add(new Series
+        radarChartOptions.Series.Add(new Series<ChartData>
         {
             Name = "Target Level",
-            Data = radarData.TargetLevels.Select(v => (object)v).ToList()
+            Data = (IEnumerable<IDataPoint<ChartData>>)radarData.TargetLevels.ConvertAll(v => (object)v)
         });
     }
 
@@ -299,8 +299,7 @@
             {
                 Bar = new PlotOptionsBar
                 {
-                    BorderRadius = 4,
-                    DataLabels = new BarDataLabels { Position = BarDataLabelsPosition.Top }
+                    BorderRadius = 4
                 }
             },
             Xaxis = new XAxis
@@ -311,10 +310,10 @@
             DataLabels = new DataLabels { Enabled = false }
         };
 
-        timelineChartOptions.Series.Add(new Series
+        timelineChartOptions.Series.Add(new Series<ChartData>
         {
             Name = "Activities",
-            Data = timelineData.Activities.Select(a => (object)a.Count).ToList()
+            Data = (IEnumerable<IDataPoint<ChartData>>)timelineData.Activities.Select(a => (object)a.Count).ToList()
         });
     }
 
