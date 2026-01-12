@@ -7,9 +7,9 @@ namespace SkillSync.Web.Services;
 public interface IAnalyticsService
 {
     Task<OverallStats?> GetOverviewAsync();
-    Task<object?> GetProgressChartAsync(int days = 30);
-    Task<object?> GetSkillRadarAsync();
-    Task<object?> GetActivityTimelineAsync(int days = 30);
+    Task<ProgressChartData?> GetProgressChartAsync(int days = 30);
+    Task<SkillRadarData?> GetSkillRadarAsync();
+    Task<ActivityTimelineData?> GetActivityTimelineAsync(int days = 30);
 }
 
 public class AnalyticsService : IAnalyticsService
@@ -25,26 +25,54 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<OverallStats?> GetOverviewAsync()
     {
-        await SetAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<OverallStats>("api/analytics/overview");
+        try
+        {
+            await SetAuthHeaderAsync();
+            return await _httpClient.GetFromJsonAsync<OverallStats>("api/analytics/overview");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    public async Task<object?> GetProgressChartAsync(int days = 30)
+    public async Task<ProgressChartData?> GetProgressChartAsync(int days = 30)
     {
-        await SetAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<object>($"api/analytics/progress-chart?days={days}");
+        try
+        {
+            await SetAuthHeaderAsync();
+            return await _httpClient.GetFromJsonAsync<ProgressChartData>($"api/analytics/progress-chart?days={days}");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    public async Task<object?> GetSkillRadarAsync()
+    public async Task<SkillRadarData?> GetSkillRadarAsync()
     {
-        await SetAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<object>("api/analytics/skill-radar");
+        try
+        {
+            await SetAuthHeaderAsync();
+            return await _httpClient.GetFromJsonAsync<SkillRadarData>("api/analytics/skill-radar");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
-    public async Task<object?> GetActivityTimelineAsync(int days = 30)
+    public async Task<ActivityTimelineData?> GetActivityTimelineAsync(int days = 30)
     {
-        await SetAuthHeaderAsync();
-        return await _httpClient.GetFromJsonAsync<object>($"api/analytics/activity-timeline?days={days}");
+        try
+        {
+            await SetAuthHeaderAsync();
+            return await _httpClient.GetFromJsonAsync<ActivityTimelineData>($"api/analytics/activity-timeline?days={days}");
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private async Task SetAuthHeaderAsync()
