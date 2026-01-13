@@ -1,5 +1,7 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Hangfire;
+using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -13,12 +15,14 @@ using SkillSync.Api;
 using SkillSync.Api.Data;
 using SkillSync.Api.Data.Entities;
 using SkillSync.Api.Services.Activities;
-using SkillSync.Api.Services.Auth;
-using SkillSync.Api.Services.Skills;
-using SkillSync.Api.Services.Milestones;
 using SkillSync.Api.Services.AI;
-using SkillSync.Api.Services.GitHub;
 using SkillSync.Api.Services.Analytics;
+using SkillSync.Api.Services.Auth;
+using SkillSync.Api.Services.BackgroundJobs;
+using SkillSync.Api.Services.GitHub;
+using SkillSync.Api.Services.Milestones;
+using SkillSync.Api.Services.Notifications;
+using SkillSync.Api.Services.Skills;
 using SkillSync.Api.Validators;
 using System.Text;
 
@@ -121,6 +125,30 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Configure Email Settings
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
+
+// Configure Hangfire
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
+    {
+        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+        QueuePollInterval = TimeSpan.Zero,
+        UseRecommendedIsolationLevel = true,
+        DisableGlobalLocks = true
+    }));
+
+builder.Services.AddHangfireServer();
+
+// Register Background Jobs
+builder.Services.AddScoped<WeeklySummaryJob>();
+builder.Services.AddScoped<MilestoneReminderJob>();
+builder.Services.AddScoped<GitHubSyncJob>();
+
 // Register Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -130,6 +158,8 @@ builder.Services.AddScoped<IMilestoneService, MilestoneService>();
 builder.Services.AddScoped<IAIRecommendationService, AIRecommendationService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 var app = builder.Build();
 
@@ -140,7 +170,8 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
     // Map Scalar UI (API docs)
-    app.MapScalarApiReference();
+    app.MapScalarApiReference(opt => 
+    opt.Theme = ScalarTheme.DeepSpace);
 }
 
 app.UseHttpsRedirection();
@@ -148,6 +179,27 @@ app.UseSerilogRequestLogging();
 app.UseCors("AllowBlazorApp");
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireAuthorizationFilter() }
+});
+
+RecurringJob.AddOrUpdate<WeeklySummaryJob>(
+    "weekly-summary",
+    job => job.ExecuteAsync(),
+    Cron.Weekly(DayOfWeek.Monday, 9)); // Every Monday at 9 AM
+
+RecurringJob.AddOrUpdate<MilestoneReminderJob>(
+    "milestone-reminder",
+    job => job.ExecuteAsync(),
+    Cron.Daily(8)); // Everyday at 8 AM
+
+RecurringJob.AddOrUpdate<GitHubSyncJob>(
+    "github-sync",
+    job => job.ExecuteAsync(),
+    Cron.Daily(2)); // Everyday at 2 AM
+
 app.MapControllers();
 
 // Ensure database is created and seeded
