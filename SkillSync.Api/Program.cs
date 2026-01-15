@@ -93,8 +93,8 @@ builder.Services.AddCors(options =>
 // Configure JWT Settings
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 
-// Configure OpenAI Settings
-builder.Services.Configure<OpenAISettings>(builder.Configuration.GetSection("OpenAI"));
+// Configure Gemini Settings
+builder.Services.Configure<GeminiSettings>(builder.Configuration.GetSection("Gemini"));
 
 // Configure GitHub Settings
 builder.Services.Configure<GitHubSettings>(builder.Configuration.GetSection("GitHub"));
@@ -155,6 +155,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISkillService, SkillService>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IMilestoneService, MilestoneService>();
+builder.Services.AddSingleton<IRateLimitService, RateLimitService>();
 builder.Services.AddScoped<IAIRecommendationService, AIRecommendationService>();
 builder.Services.AddHttpClient<IGitHubService, GitHubService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();

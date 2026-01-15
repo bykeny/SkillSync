@@ -2,7 +2,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
-using OpenAI.Chat;
+using Mscc.GenerativeAI;
 using SkillSync.Api.Data;
 using SkillSync.Api.Data.Entities;
 using SkillSync.Api.DTOs.AI;
@@ -12,27 +12,30 @@ namespace SkillSync.Api.Services.AI;
 public class AIRecommendationService : IAIRecommendationService
 {
     private readonly ApplicationDbContext _context;
-    private readonly OpenAISettings _settings;
+    private readonly GeminiSettings _settings;
     private readonly ILogger<AIRecommendationService> _logger;
-    private readonly ChatClient _chatClient;
+    private readonly IRateLimitService _rateLimitService;
+    private readonly GoogleAI _geminiClient;
 
     public AIRecommendationService(
         ApplicationDbContext context,
-        IOptions<OpenAISettings> settings,
-        ILogger<AIRecommendationService> logger)
+        IOptions<GeminiSettings> settings,
+        ILogger<AIRecommendationService> logger,
+        IRateLimitService rateLimitService)
     {
         _context = context;
         _settings = settings.Value;
         _logger = logger;
+        _rateLimitService = rateLimitService;
 
         if (string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
             throw new InvalidOperationException(
-                "OpenAI API key is not configured. Please set 'OpenAI:ApiKey' in your configuration " +
+                "Gemini API key is not configured. Please set 'Gemini:ApiKey' in your configuration " +
                 "(user secrets, environment variables, or appsettings.json).");
         }
 
-        _chatClient = new ChatClient(_settings.Model, _settings.ApiKey);
+        _geminiClient = new GoogleAI(_settings.ApiKey);
     }
 
     public async Task<string> GenerateLearningPathAsync(string userId, int skillId)
@@ -47,7 +50,7 @@ public class AIRecommendationService : IAIRecommendationService
             throw new InvalidOperationException("Skill not found");
 
         var prompt = BuildLearningPathPrompt(skill);
-        var response = await CallOpenAIAsync(prompt);
+        var response = await CallGeminiAsync(prompt);
 
         // Save recommendation
         var recommendation = new AIRecommendation
@@ -80,7 +83,7 @@ public class AIRecommendationService : IAIRecommendationService
             return "You don't have any active skills yet. Add some skills to get a personalized schedule!";
 
         var prompt = BuildWeeklySchedulePrompt(skills);
-        var response = await CallOpenAIAsync(prompt);
+        var response = await CallGeminiAsync(prompt);
 
         // Save recommendation
         var recommendation = new AIRecommendation
@@ -113,7 +116,7 @@ public class AIRecommendationService : IAIRecommendationService
             return "You don't have any skills tracked yet. Add some skills to get a gap analysis!";
 
         var prompt = BuildSkillGapPrompt(skills);
-        var response = await CallOpenAIAsync(prompt);
+        var response = await CallGeminiAsync(prompt);
 
         // Save recommendation
         var recommendation = new AIRecommendation
@@ -172,22 +175,37 @@ public class AIRecommendationService : IAIRecommendationService
         };
     }
 
-    private async Task<string> CallOpenAIAsync(string prompt)
+    private async Task<string> CallGeminiAsync(string prompt)
     {
         try
         {
-            var messages = new List<ChatMessage>
-            {
-                new SystemChatMessage("You are a helpful learning advisor and skill development coach. Provide practical, actionable advice for developers and professionals looking to improve their skills. Format your responses in clear markdown with headers, bullet points, and emphasis where appropriate."),
-                new UserChatMessage(prompt)
-            };
+            // Wait for rate limit before making the call
+            await _rateLimitService.WaitForRateLimitAsync();
+            
+            var model = _geminiClient.GenerativeModel(_settings.Model);
+            
+            // Optimize system instruction for Gemini
+            var systemInstruction = @"You are an expert learning advisor and skill development coach specializing in helping developers and professionals grow their careers. Your advice should be:
+- Practical and immediately actionable
+- Tailored to the user's current situation
+- Structured with clear headers and bullet points
+- Focused on modern best practices and industry standards
+- Encouraging yet realistic about timelines and effort required
 
-            var completion = await _chatClient.CompleteChatAsync(messages);
-            return completion.Value.Content[0].Text;
+Format all responses in clear markdown with headers (##, ###), bullet points, and **bold** emphasis where appropriate.";
+
+            var fullPrompt = $"{systemInstruction}\n\n{prompt}";
+            
+            var response = await model.GenerateContent(fullPrompt);
+            
+            // Record the successful API call
+            _rateLimitService.RecordApiCall();
+            
+            return response.Text ?? throw new InvalidOperationException("Gemini returned an empty response");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error calling OpenAI API");
+            _logger.LogError(ex, "Error calling Gemini API");
             throw new InvalidOperationException("Failed to generate AI recommendation. Please try again.", ex);
         }
     }
@@ -195,33 +213,51 @@ public class AIRecommendationService : IAIRecommendationService
     private string BuildLearningPathPrompt(Skill skill)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Create a personalized learning path for improving the following skill:");
+        sb.AppendLine($"# Task: Create a Personalized Learning Path");
         sb.AppendLine();
-        sb.AppendLine($"**Skill:** {skill.Name}");
-        sb.AppendLine($"**Category:** {skill.Category?.Name ?? "General"}");
-        sb.AppendLine($"**Current Level:** {skill.ProficiencyLevel}/5");
-        sb.AppendLine($"**Target Level:** {skill.TargetLevel}/5");
+        sb.AppendLine($"## Skill Information:");
+        sb.AppendLine($"- **Skill Name:** {skill.Name}");
+        sb.AppendLine($"- **Category:** {skill.Category?.Name ?? "General"}");
+        sb.AppendLine($"- **Current Proficiency:** {skill.ProficiencyLevel}/5");
+        sb.AppendLine($"- **Target Proficiency:** {skill.TargetLevel}/5");
+        sb.AppendLine($"- **Proficiency Gap:** {skill.TargetLevel - skill.ProficiencyLevel} levels to improve");
 
         if (!string.IsNullOrEmpty(skill.Description))
-            sb.AppendLine($"**Context:** {skill.Description}");
+            sb.AppendLine($"- **Additional Context:** {skill.Description}");
 
         sb.AppendLine();
-        sb.AppendLine($"**Recent Activities:** {skill.Activities.Count} activities logged");
+        sb.AppendLine($"## Progress Tracking:");
+        sb.AppendLine($"- Total activities logged: {skill.Activities.Count}");
 
         if (skill.Activities.Any())
         {
             var completedCount = skill.Activities.Count(a => a.Status == ActivityStatus.Completed);
-            sb.AppendLine($"- Completed: {completedCount}");
-            sb.AppendLine($"- Total time spent: {skill.Activities.Sum(a => a.DurationMinutes) / 60.0:F1} hours");
+            var totalHours = skill.Activities.Sum(a => a.DurationMinutes) / 60.0;
+            sb.AppendLine($"- Completed activities: {completedCount}");
+            sb.AppendLine($"- Total study time invested: {totalHours:F1} hours");
         }
 
         sb.AppendLine();
-        sb.AppendLine("Please provide:");
-        sb.AppendLine("1. A step-by-step learning path from current to target level");
-        sb.AppendLine("2. Specific topics to focus on at each stage");
-        sb.AppendLine("3. Recommended resources (courses, books, projects)");
-        sb.AppendLine("4. Estimated timeline for each stage");
-        sb.AppendLine("5. Practical projects or exercises to solidify knowledge");
+        sb.AppendLine("## Required Output:");
+        sb.AppendLine("Create a comprehensive, actionable learning path structured as follows:");
+        sb.AppendLine();
+        sb.AppendLine("### 1. Learning Roadmap");
+        sb.AppendLine("Break down the journey from current level to target level into clear stages.");
+        sb.AppendLine();
+        sb.AppendLine("### 2. Topic Breakdown");
+        sb.AppendLine("For each stage, list specific topics, concepts, and technologies to master.");
+        sb.AppendLine();
+        sb.AppendLine("### 3. Recommended Resources");
+        sb.AppendLine("Suggest high-quality courses, books, documentation, tutorials, and video content for each stage.");
+        sb.AppendLine();
+        sb.AppendLine("### 4. Practical Projects");
+        sb.AppendLine("Propose hands-on projects that will solidify learning and build portfolio pieces.");
+        sb.AppendLine();
+        sb.AppendLine("### 5. Timeline Estimation");
+        sb.AppendLine("Provide realistic time estimates for each stage based on 5-10 hours per week of dedicated study.");
+        sb.AppendLine();
+        sb.AppendLine("### 6. Milestones & Success Criteria");
+        sb.AppendLine("Define clear checkpoints to measure progress at each stage.");
 
         return sb.ToString();
     }
@@ -229,25 +265,45 @@ public class AIRecommendationService : IAIRecommendationService
     private string BuildWeeklySchedulePrompt(List<Skill> skills)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Create a balanced weekly study schedule based on these skills:");
+        sb.AppendLine("# Task: Design a Balanced Weekly Study Schedule");
         sb.AppendLine();
+        sb.AppendLine("## Active Skills Requiring Development:");
 
-        foreach (var skill in skills.OrderByDescending(s => s.TargetLevel - s.ProficiencyLevel).Take(5))
+        var prioritizedSkills = skills
+            .OrderByDescending(s => s.TargetLevel - s.ProficiencyLevel)
+            .ThenByDescending(s => s.TargetLevel)
+            .Take(5)
+            .ToList();
+
+        foreach (var skill in prioritizedSkills)
         {
-            sb.AppendLine($"- **{skill.Name}** (Level {skill.ProficiencyLevel}→{skill.TargetLevel})");
-            if (!string.IsNullOrEmpty(skill.Category?.Name))
-                sb.AppendLine($"  Category: {skill.Category.Name}");
+            var gap = skill.TargetLevel - skill.ProficiencyLevel;
+            sb.AppendLine($"- **{skill.Name}** ({skill.Category?.Name ?? "General"})");
+            sb.AppendLine($"  - Current Level: {skill.ProficiencyLevel}/5");
+            sb.AppendLine($"  - Target Level: {skill.TargetLevel}/5");
+            sb.AppendLine($"  - Gap: {gap} levels");
         }
 
         sb.AppendLine();
-        sb.AppendLine("Please create a weekly schedule that:");
-        sb.AppendLine("1. Allocates 7-10 hours total across the week");
-        sb.AppendLine("2. Prioritizes skills with the biggest gaps");
-        sb.AppendLine("3. Includes a mix of learning, practice, and projects");
-        sb.AppendLine("4. Considers typical work-life balance (weekday evenings + weekends)");
-        sb.AppendLine("5. Includes specific, actionable tasks for each session");
+        sb.AppendLine("## Schedule Requirements:");
+        sb.AppendLine("- **Total Weekly Hours:** 7-10 hours distributed across the week");
+        sb.AppendLine("- **Priority System:** Allocate more time to skills with larger proficiency gaps");
+        sb.AppendLine("- **Learning Balance:** Mix of theory, practice, and project work");
+        sb.AppendLine("- **Work-Life Balance:** Consider typical work schedules (evenings 7-9 PM on weekdays, flexible weekend blocks)");
         sb.AppendLine();
-        sb.AppendLine("Format as a day-by-day schedule with time blocks.");
+        sb.AppendLine("## Required Output:");
+        sb.AppendLine("Create a day-by-day schedule with the following structure:");
+        sb.AppendLine();
+        sb.AppendLine("### For each day (Monday-Sunday):");
+        sb.AppendLine("- Time slot (e.g., 7:00 PM - 8:30 PM)");
+        sb.AppendLine("- Skill to focus on");
+        sb.AppendLine("- Specific task or activity (e.g., 'Complete React hooks tutorial', 'Build mini-project')");
+        sb.AppendLine("- Duration in minutes");
+        sb.AppendLine();
+        sb.AppendLine("### Additional Elements:");
+        sb.AppendLine("- Include at least one rest day");
+        sb.AppendLine("- Suggest short 15-minute review sessions for reinforcement");
+        sb.AppendLine("- Recommend one longer weekend session (2-3 hours) for project work");
 
         return sb.ToString();
     }
@@ -255,28 +311,54 @@ public class AIRecommendationService : IAIRecommendationService
     private string BuildSkillGapPrompt(List<Skill> skills)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Analyze the skill gaps in this developer's profile:");
+        sb.AppendLine("# Task: Comprehensive Skill Gap Analysis");
         sb.AppendLine();
+        sb.AppendLine("## Current Skill Portfolio:");
 
-        var grouped = skills.GroupBy(s => s.Category?.Name ?? "Other");
+        var grouped = skills.GroupBy(s => s.Category?.Name ?? "Uncategorized")
+            .OrderByDescending(g => g.Count());
 
         foreach (var group in grouped)
         {
-            sb.AppendLine($"**{group.Key}:**");
-            foreach (var skill in group)
+            sb.AppendLine();
+            sb.AppendLine($"### {group.Key}:");
+            foreach (var skill in group.OrderByDescending(s => s.ProficiencyLevel))
             {
                 var gap = skill.TargetLevel - skill.ProficiencyLevel;
-                sb.AppendLine($"- {skill.Name}: Level {skill.ProficiencyLevel}/5 (Gap: {gap})");
+                var gapIndicator = gap > 2 ? "⚠️ Large Gap" : gap > 0 ? "→ Growing" : "✓ Target Reached";
+                sb.AppendLine($"- **{skill.Name}**: Level {skill.ProficiencyLevel}/5 → Target: {skill.TargetLevel}/5 ({gapIndicator})");
             }
-            sb.AppendLine();
         }
 
-        sb.AppendLine("Please provide:");
-        sb.AppendLine("1. Analysis of current skill distribution and balance");
-        sb.AppendLine("2. Identified gaps and weaknesses");
-        sb.AppendLine("3. Complementary skills that would enhance the portfolio");
-        sb.AppendLine("4. Priority recommendations for the next 3 months");
-        sb.AppendLine("5. Career path suggestions based on current skills");
+        sb.AppendLine();
+        sb.AppendLine("## Analysis Requirements:");
+        sb.AppendLine();
+        sb.AppendLine("### 1. Skill Distribution Assessment");
+        sb.AppendLine("Analyze the balance across different categories. Identify if the developer is:");
+        sb.AppendLine("- Well-rounded or specialized");
+        sb.AppendLine("- Frontend-heavy, backend-heavy, or full-stack");
+        sb.AppendLine("- Lacking in any critical areas");
+        sb.AppendLine();
+        sb.AppendLine("### 2. Critical Gaps Identification");
+        sb.AppendLine("Highlight the most significant gaps that should be prioritized, considering:");
+        sb.AppendLine("- Skills with largest proficiency gaps");
+        sb.AppendLine("- Industry demands and market trends");
+        sb.AppendLine("- Synergies between existing and missing skills");
+        sb.AppendLine();
+        sb.AppendLine("### 3. Complementary Skills Recommendations");
+        sb.AppendLine("Suggest 3-5 new skills that would:");
+        sb.AppendLine("- Enhance the existing skill set");
+        sb.AppendLine("- Fill obvious gaps in the portfolio");
+        sb.AppendLine("- Increase marketability and career opportunities");
+        sb.AppendLine();
+        sb.AppendLine("### 4. 90-Day Priority Action Plan");
+        sb.AppendLine("Recommend specific skills to focus on for the next 3 months, with clear reasoning.");
+        sb.AppendLine();
+        sb.AppendLine("### 5. Career Path Alignment");
+        sb.AppendLine("Based on the current skills, suggest 2-3 career paths or roles that would be a good fit:");
+        sb.AppendLine("- Roles that align well with current strengths");
+        sb.AppendLine("- Emerging opportunities that match the skill trajectory");
+        sb.AppendLine("- What additional skills would be needed for each path");
 
         return sb.ToString();
     }
