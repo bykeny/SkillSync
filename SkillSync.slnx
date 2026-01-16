@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/Tests/">
+    <Project Path="Tests/SkillSync.Tests.Unit/SkillSync.Tests.Unit.csproj" />
+  </Folder>
   <Project Path="SkillSync.Api/SkillSync.Api.csproj" />
   <Project Path="SkillSync.Web/SkillSync.Web.csproj" />
 </Solution>
