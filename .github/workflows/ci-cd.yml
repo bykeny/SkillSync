@@ -1,0 +1,81 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, ci-cd ]
+  pull_request:
+    branches: [ main, ci-cd ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Run Unit Tests
+      run: dotnet test Tests/SkillSync.Tests.Unit/SkillSync.Tests.Unit.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=unit-test-results.trx"
+    
+    - name: Run Integration Tests
+      run: dotnet test Tests/SkillSync.Tests.Integration/SkillSync.Tests.Integration.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=integration-test-results.trx"
+    
+    - name: Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: |
+          **/unit-test-results.trx
+          **/integration-test-results.trx
+    
+    - name: Code Coverage
+      run: |
+        dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage"
+    
+    - name: Upload Coverage Reports
+      uses: codecov/codecov-action@v4
+      if: success()
+      with:
+        files: '**/coverage.cobertura.xml'
+        fail_ci_if_error: false
+
+  publish:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+    
+    - name: Publish API
+      run: dotnet publish SkillSync.Api/SkillSync.Api.csproj --configuration Release --output ./publish/api
+    
+    - name: Publish Web
+      run: dotnet publish SkillSync.Web/SkillSync.Web.csproj --configuration Release --output ./publish/web
+    
+    - name: Upload API Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: api-artifact
+        path: ./publish/api
+    
+    - name: Upload Web Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: web-artifact
+        path: ./publish/web
