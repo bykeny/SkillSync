@@ -24,19 +24,15 @@ jobs:
     - name: Build
       run: dotnet build --no-restore --configuration Release
     
-    - name: Run Unit Tests
-      run: dotnet test Tests/SkillSync.Tests.Unit/SkillSync.Tests.Unit.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=unit-test-results.trx"
-    
-    - name: Run Integration Tests
-      run: dotnet test Tests/SkillSync.Tests.Integration/SkillSync.Tests.Integration.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=integration-test-results.trx"
+    - name: Run Tests
+      run: dotnet test --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
     
     - name: Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
       with:
         files: |
-          **/unit-test-results.trx
-          **/integration-test-results.trx
+          **/test-results.trx
     
     - name: Code Coverage
       run: |
