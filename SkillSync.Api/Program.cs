@@ -139,20 +139,23 @@ builder.Services.AddAuthentication(options =>
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 
 // Configure Hangfire
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
-    {
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-        QueuePollInterval = TimeSpan.Zero,
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true
-    }));
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection"), new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.Zero,
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true
+        }));
 
-builder.Services.AddHangfireServer();
+    builder.Services.AddHangfireServer();
+}
 
 // Register Background Jobs
 builder.Services.AddScoped<WeeklySummaryJob>();
@@ -191,25 +194,28 @@ app.UseCors("AllowBlazorApp");
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    Authorization = new[] { new HangfireAuthorizationFilter() }
-});
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireAuthorizationFilter() }
+    });
 
-RecurringJob.AddOrUpdate<WeeklySummaryJob>(
-    "weekly-summary",
-    job => job.ExecuteAsync(),
-    Cron.Weekly(DayOfWeek.Monday, 9)); // Every Monday at 9 AM
+    RecurringJob.AddOrUpdate<WeeklySummaryJob>(
+        "weekly-summary",
+        job => job.ExecuteAsync(),
+        Cron.Weekly(DayOfWeek.Monday, 9)); // Every Monday at 9 AM
 
-RecurringJob.AddOrUpdate<MilestoneReminderJob>(
-    "milestone-reminder",
-    job => job.ExecuteAsync(),
-    Cron.Daily(8)); // Everyday at 8 AM
+    RecurringJob.AddOrUpdate<MilestoneReminderJob>(
+        "milestone-reminder",
+        job => job.ExecuteAsync(),
+        Cron.Daily(8)); // Everyday at 8 AM
 
-RecurringJob.AddOrUpdate<GitHubSyncJob>(
-    "github-sync",
-    job => job.ExecuteAsync(),
-    Cron.Daily(2)); // Everyday at 2 AM
+    RecurringJob.AddOrUpdate<GitHubSyncJob>(
+        "github-sync",
+        job => job.ExecuteAsync(),
+        Cron.Daily(2)); // Everyday at 2 AM
+}
 
 app.MapControllers();
 
